@@ -85,10 +85,50 @@ func (m *Manager) RemoveClient(client *Client) {
 
 func (m *Manager) SetupHandlers() {
 	m.handlers[EventSendMessage] = SendMessage
+	m.handlers[EventChangeRoom] = ChangeRoom
+}
+
+func ChangeRoom(event Event, c *Client) error {
+	var changeRoomEvent ChangeRoomEvent
+
+	if err := json.Unmarshal(event.Payload, &changeRoomEvent); err != nil {
+		return fmt.Errorf("bad payload in request: %v", err)
+	}
+
+	c.chatroom = changeRoomEvent.Name
+
+	return nil
 }
 
 func SendMessage(event Event, c *Client) error {
-	fmt.Println(event)
+	var chatevent SendMessageEvent
+
+	if err := json.Unmarshal(event.Payload, &chatevent); err != nil {
+		return fmt.Errorf("bad payload in request: %v", err)
+	}
+
+	var broadMessage NewMessageEvent
+
+	broadMessage.Sent = time.Now()
+	broadMessage.Message = chatevent.Message
+	broadMessage.From = chatevent.From
+
+	data, err := json.Marshal(broadMessage)
+	if err != nil {
+		return fmt.Errorf("failed to encode message: %v", err)
+	}
+
+	outgoingEvent := Event{
+		Payload: data,
+		Type: EventNewMessage,
+	}
+
+	for client := range c.manager.clients {
+		if client.chatroom == c.chatroom {
+			client.egress <- outgoingEvent
+		}
+	}
+
 	return nil
 }
 
@@ -107,7 +147,7 @@ func checkOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 
 	switch origin {
-	case "http://localhost:8080":
+	case "https://localhost:8080":
 		return true
 	default:
 		return false

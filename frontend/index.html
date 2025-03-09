@@ -53,6 +53,43 @@
             }
         }
 
+        class SendMessageEvent {
+            constructor(message, from) {
+                this.message = message
+                this.from = from
+            }
+        }
+
+        class NewMessageEvent {
+            constructor(message, from, sent) {
+                this.message = message
+                this.from = from
+                this.sent = sent
+            }
+        }
+
+        class ChangeChatRoomEvent{
+            constructor(name) {
+                this.name = name
+            }
+        }
+
+        function changeChatRoom() {
+            var newchat = document.getElementById("chatroom");
+            if (newchat != null && newchat.value != selectedChat) {
+                selectedChat = newchat.value
+                header = document.getElementById("chat-header").innerHTML = `Currently in chatroom: ${selectedChat}`
+
+                let changeEvent = new ChangeChatRoomEvent(selectedChat);
+
+                sendEvent("change_room", changeEvent)
+                var chatArea = document.getElementById("chatmessages")
+                chatArea.innerHTML = `Welcome to the ${selectedChat}, here messages from others will appear` 
+            }
+
+            return false;
+        }
+
         function routeEvent(event) {
             if (event.type === undefined) {
                 alert("No type field in event");
@@ -60,12 +97,21 @@
 
             switch(event.type) {
                 case "new_message":
-                    console.log("new message event");
+                    const messageEvent = Object.assign(new NewMessageEvent(), event.payload);
+                    appendMessage(messageEvent);
                     break;
                 default:
                     alert("unsupported message type");
                     break;
             }
+        }
+
+        function appendMessage(message) {
+            var date = new Date(message.sent);
+            const formattedMsg = `${date.toLocaleString()}: ${message.message}`;
+            var chatArea = document.getElementById("chatmessages")
+            chatArea.innerHTML += formattedMsg + "\n";
+            chatArea.scrollTop = chatArea.scrollHeight;
         }
 
         function sendEvent(eventName, payload) {
@@ -74,21 +120,12 @@
             conn.send(JSON.stringify(event));
         }
 
-        function changeChatRoom() {
-            var newChat = document.getElementById("chatroom");
-
-            if (newChat != null && newChat.value != selectedChat) {
-                console.log(newChat);
-            }
-
-            return false;
-        }
-
         function sendMessage() {
             var newMessage = document.getElementById("message");
 
             if (newMessage != null) {
-                sendEvent("send_message", newMessage.value)
+                let outgoingEvent = new SendMessageEvent(newMessage.value, "sanjaiy");
+                sendEvent("send_message", outgoingEvent)
             }
 
             return false;
@@ -121,7 +158,7 @@
 
         function connectToWebsocket(token) {
             if (window["WebSocket"]) {
-                conn = new WebSocket(`ws://${document.location.host}/ws?token=${token}`);
+                conn = new WebSocket(`wss://${document.location.host}/ws?token=${token}`);
 
                 conn.onopen = function (e) {
                     document.getElementById("connection-header").innerText = "Connected to Websocket: true";
