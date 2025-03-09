@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>SK Buzz</title>
+</head>
+
+<body>
+    <div class="center">
+        <h1>SK Buzz</h1>
+        <h3 id="chat-header">Currently in chat: general</h3>
+        <h3 id="connection-header">Connected to Websocket: false</h3>
+
+        <form id="chatroom-selection">
+            <label for="chatroom">CHATROOM</label>
+            <input type="text" id="chatroom" name="chatroom"><br><br>
+            <input type="submit" value="Change Room">
+        </form>
+
+        <br>
+        <textarea class="messagearea" id="chatmessages" readonly name="chatmessages" rows="4" cols="50"
+            placeholder="Welcome to the SK Buzz, here messages from others will appear"></textarea>
+
+        <br>
+        <form id="chatroom-message">
+            <label for="message">MESSAGE</label>
+            <input type="text" id="message" name="message"><br><br>
+            <input type="submit" value="Send Message">
+        </form>
+
+        <div style="border: 3px solid black;margin-top: 30px;">
+            <form id="login-form">
+                <label for="username">USERNAME</label>
+                <input type="text" id="username" name="username"><br>
+                <label for="password">PASSWORD</label>
+                <input type="password" id="password" name="password"><br><br>
+                <input type="submit" value="Login">
+            </form>
+        </div>
+
+    </div>
+
+    <script>
+        var selectedChat = "general";
+
+        class Event {
+            constructor(type, payload) {
+                this.type = type
+                this.payload = payload
+            }
+        }
+
+        function routeEvent(event) {
+            if (event.type === undefined) {
+                alert("No type field in event");
+            }
+
+            switch(event.type) {
+                case "new_message":
+                    console.log("new message event");
+                    break;
+                default:
+                    alert("unsupported message type");
+                    break;
+            }
+        }
+
+        function sendEvent(eventName, payload) {
+            var event = new Event(eventName, payload);
+            
+            conn.send(JSON.stringify(event));
+        }
+
+        function changeChatRoom() {
+            var newChat = document.getElementById("chatroom");
+
+            if (newChat != null && newChat.value != selectedChat) {
+                console.log(newChat);
+            }
+
+            return false;
+        }
+
+        function sendMessage() {
+            var newMessage = document.getElementById("message");
+
+            if (newMessage != null) {
+                sendEvent("send_message", newMessage.value)
+            }
+
+            return false;
+        }
+
+        function login() {
+            let formData = {
+                username: document.getElementById("username").value,
+                password: document.getElementById("password").value
+            }
+
+            fetch("/login", {
+                method: "POST",
+                body: JSON.stringify(formData),
+                mode: 'cors',
+            }).then((response) => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw "unauthorized";
+                }
+            }).then((data) => {
+                connectToWebsocket(data.token);
+            }).catch((error) => {
+                alert("Login failed", error);
+            });
+
+            return false;
+        }
+
+        function connectToWebsocket(token) {
+            if (window["WebSocket"]) {
+                conn = new WebSocket(`ws://${document.location.host}/ws?token=${token}`);
+
+                conn.onopen = function (e) {
+                    document.getElementById("connection-header").innerText = "Connected to Websocket: true";
+                }
+
+                conn.onclose = function (e) {
+                    document.getElementById("connection-header").innerText = "Connected to Websocket: false";
+                }
+
+                conn.onmessage = function (e) {
+                    const eventData = JSON.parse(e.data);
+
+                    const event = Object.assign(new Event(), eventData);
+
+                    routeEvent(event);
+                }
+            } else {
+                alert("Your browser does not support WebSockets.")
+            }
+        }
+
+        window.onload = function () {
+            document.getElementById("chatroom-selection").onsubmit = changeChatRoom
+            document.getElementById("chatroom-message").onsubmit = sendMessage
+            document.getElementById("login-form").onsubmit = login
+        }
+
+    </script>
+
+    <style type="text/css">
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .center {
+            width: 90%;
+            max-width: 500px;
+            padding: 20px;
+            background: rgba(36, 36, 36, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            color: #ff6b6b;
+        }
+
+        h3 {
+            font-size: 14px;
+            margin: 10px 0;
+            color: #bdbdbd;
+        }
+
+        form {
+            margin-top: 15px;
+        }
+
+        label {
+            font-size: 14px;
+            color: #bdbdbd;
+            font-weight: 400;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 90%;
+            padding: 10px;
+            margin-top: 5px;
+            border: none;
+            border-radius: 8px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        input[type="submit"] {
+            background: linear-gradient(135deg, #ff6b6b, #ffbb33);
+            color: #ffffff;
+            border: none;
+            padding: 12px 18px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.3s;
+            display: block;
+            width: 95%;
+            margin: 10px auto;
+        }
+
+        input[type="submit"]:hover {
+            transform: scale(1.05);
+            box-shadow: 0px 3px 10px rgba(255, 107, 107, 0.4);
+        }
+
+        textarea {
+            width: 90%;
+            height: 120px;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            resize: none;
+            outline: none;
+            transition: 0.3s;
+        }
+
+        textarea:focus {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Login Box */
+        #login-form {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .center {
+                width: 95%;
+            }
+
+            input[type="text"],
+            input[type="password"],
+            textarea {
+                width: 100%;
+            }
+        }
+
+    </style>
+
+</body>
+
+</html>
